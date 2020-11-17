@@ -59,8 +59,6 @@
 
 - (void) prepareName: (NSArray *) outputArray
 {
-    NSAutoreleasePool *pool = [NSAutoreleasePool new];
-
     [self hideProgress];
     [nameField setStringValue: [outputArray objectAtIndex: 0]];
 
@@ -76,15 +74,12 @@
     [button setAction: @selector(startBuilding:)];
     [button setTitle: NSLocalizedString(@"Start", "")];
     [button setHidden: NO];
-
-    [pool release];
 }
 
 - (void) startConversionWith: (NSString *) dictFile
 {
     NSLog(@"startConversionWith: %@", dictFile);
-
-    NSAutoreleasePool *pool = [NSAutoreleasePool new];
+    
     NSFileManager *manager = [[NSFileManager alloc] init];
 
     [self cleanup];
@@ -97,7 +92,7 @@
                                    error: NULL])
     {
         NSLog(@"Failed to create directory %@", self.tempDir);
-        goto exit;
+        return;
     }
 
     NSLog(@"dict extension: %@", [dictFile pathExtension]);
@@ -118,7 +113,7 @@
         if ([task terminationStatus])
         {
             NSLog(@"Failed to untar %@ at %@", dictFile, self.tempDir);
-            goto exit;
+            return;
         }
 
         NSArray *dirContents = [manager contentsOfDirectoryAtPath: self.tempDir error: NULL];
@@ -136,11 +131,11 @@
     if (! ifoFile)
     {
         NSLog(@"Failed to find any matching ifo file.");
-        goto exit;
+        return;
     }
 
     NSLog(@"ifoFile = %@", ifoFile);
-    self.dictID = [[[ifoFile lastPathComponent] stringByDeletingPathExtension] retain];
+    self.dictID = [[ifoFile lastPathComponent] stringByDeletingPathExtension];
     NSLog(@"dictID = %@", self.dictID);
 
     self.dictDir = [self.tempDir stringByAppendingPathComponent:
@@ -152,7 +147,7 @@
                                    error: NULL])
     {
         NSLog(@"Failed to create directory %@", self.dictDir);
-        goto exit;
+        return;
     }
 
     NSBundle *bundle = [NSBundle mainBundle];
@@ -171,7 +166,7 @@
                         [dictFile lastPathComponent]]];
 
     // Prepare to run the actual conversion utility: sdconv with ifoFile as source file
-    NSTask *task = [[[NSTask alloc] init] autorelease];
+    NSTask *task = [[NSTask alloc] init];
     NSPipe *pipe = [NSPipe pipe];
 
     [task setLaunchPath: [bundle pathForAuxiliaryExecutable: @"sdconv"]];
@@ -189,20 +184,17 @@
                       NSLocalizedString(@"Convert %@ failed, abort now.", ""), self.dictID]];
         [self hideProgress];
         [dropper setHidden: NO];
-        goto exit;
+        return;
     }
 
     NSFileHandle *handle = [pipe fileHandleForReading];
-    NSString *output = [[[NSString alloc] initWithData: [handle readDataToEndOfFile]
-                                              encoding: NSUTF8StringEncoding] autorelease];
+    NSString *output = [[NSString alloc] initWithData: [handle readDataToEndOfFile]
+                                              encoding: NSUTF8StringEncoding];
 
     [self performSelectorOnMainThread: @selector(prepareName:)
                            withObject: [output componentsSeparatedByString: @" "]
                         waitUntilDone: YES];
 
-exit:
-    [manager release];
-    [pool release];
 }
 
 - (void) showDone
@@ -214,8 +206,6 @@ exit:
                             stringByAppendingPathComponent: @"done.png"];
     NSImage *done = [[NSImage alloc] initWithContentsOfFile: imageFile];
     [dropper setImage: done];
-    [done release];
-
     [dropper setHidden: NO];
     [self setStatus: NSLocalizedString(@"Done", "")];
 }
@@ -307,7 +297,6 @@ exit:
 
 - (void) startBuildingWith: (NSString *) dictName
 {
-    NSAutoreleasePool *pool = [NSAutoreleasePool new];
     [self setStatus: [NSString stringWithFormat: NSLocalizedString(@"Building %@...", ""), dictName]];
 
     NSLog(@"dictDir = %@", self.dictDir);
@@ -327,7 +316,7 @@ exit:
     // Development Kit
     NSBundle *bundle = [NSBundle mainBundle];
     NSString *binaryDir = [[bundle resourcePath] stringByAppendingPathComponent: @"bin"];
-    NSTask *task = [[[NSTask alloc] init] autorelease];
+    NSTask *task = [[NSTask alloc] init];
     NSPipe *pipe = [NSPipe pipe];
     NSDictionary *environments = [NSDictionary dictionaryWithObjectsAndKeys:
                                     @"en_US.UTF-8", @"LANG",
@@ -368,7 +357,7 @@ exit:
     NSString *dictBasename = [NSString stringWithFormat: @"%@.dictionary", self.dictID];
     NSString *srcDict = [[self.dictDir stringByAppendingPathComponent: @"objects"]
                          stringByAppendingPathComponent: dictBasename];
-    NSFileManager *manager = [[[NSFileManager alloc] init] autorelease];
+    NSFileManager *manager = [[NSFileManager alloc] init];
     BOOL isDirectory;
 
     if (! [task terminationStatus] &&
@@ -393,7 +382,6 @@ exit:
     }
 
     [self cleanup];
-    [pool release];
 }
 
 - (IBAction) startBuilding: (id) sender
@@ -406,15 +394,6 @@ exit:
 
     [self performSelectorInBackground: @selector(startBuildingWith:)
                            withObject: [nameField stringValue]];
-}
-
-- (void) dealloc
-{
-    [buildTask release];
-    [dictID release];
-    [dictDir release];
-    [tempDir release];
-    [super dealloc];
 }
 
 - (void) cleanup
